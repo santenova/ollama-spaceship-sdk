@@ -25,6 +25,8 @@
   },
   "homepage": "https://github.com/santenova/ollama-spaceship-sdk.git#readme",
   "devDependencies": {
+    "@jest/globals": "^30.4.1",
+    "@types/jest": "^30.0.0",
     "jest": "^30.4.2",
     "jest-ts": "^1.1.22",
     "ts-jest": "^29.4.11"
