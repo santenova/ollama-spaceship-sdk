@@ -1,6 +1,6 @@
 {
   "name": "@santex/ollama-spaceship-sdk",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "main": "index.ts",
   "types": "dist/index.d.ts",
   "description": "",
