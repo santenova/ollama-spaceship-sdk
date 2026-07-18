@@ -1,0 +1,12 @@
+requests
+elasticsearch==8
+scikit-learn
+torch
+pandas
+numpy
+matplotlib
+seaborn
+asyncio
+partial_json_parser
+elasticsearch_dsl
+ollama
