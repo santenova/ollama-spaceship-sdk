@@ -1,0 +1,32 @@
+{
+  "name": "@santenova/ollama-spaceship-sdk",
+  "version": "1.0.0",
+  "main": "apis/run.ts",
+  "types": "dist/index.d.ts",
+  "description": "",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test:fail": "node --experimental-vm-modules node_modules/.bin/jest --reporters=./jest-fail-reporter.cjs",
+    "test:client": "npx tsx src/apis/client.test.ts",
+    "benchmark": "npx tsx src/apis/lib/triple-validation-cli.ts --cases",
+    "backend": "cd data && python3 -m venv venv; ./venv/bin/pip3 install -r requirements.txt;",
+    "ingest": "cd data && for j in *json; do i=$(echo \"$j\" | sed 's/.json//' | tr [A-Z] [a-z]); ./venv/bin/python3 ./import.py --url http://127.0.0.1:9200 --file \"$j\" --index \"prompt-hub-$i\"; done"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/santenova/ollama-spaceship-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/santenova/ollama-spaceship-sdk.git/issues"
+  },
+  "homepage": "https://github.com/santenova/ollama-spaceship-sdk.git#readme",
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "jest-ts": "^1.1.22",
+    "ts-jest": "^29.4.11"
+  }
+}
