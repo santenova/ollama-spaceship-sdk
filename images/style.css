@@ -1,0 +1,12 @@
+/* Insert your logo image before or next to the project title */
+.tsd-page-title::after {
+    content: "";
+    display: inline-block;
+    width: 620px;
+    height: 620px;
+    vertical-align: middle;
+    margin-right: 10px;
+    background-image: url('/images/ollama-spaceship.png');
+    background-size: contain;
+    background-repeat: no-repeat;
+}
