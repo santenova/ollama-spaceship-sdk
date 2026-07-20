@@ -14,7 +14,7 @@
 
 import { telemetry } from './telemetry';
 // Static import — telemetryLogStore patches clientLogger independently, no circular dep
-import { logStore } from '../lib/telemetryLogStore';
+import { logStore } from './telemetryLogStore';
 
 function pushEntry(level: string, message: string, context?: Record<string, any>, durationMs?: number) {
   logStore.push({ level, message, context, durationMs });

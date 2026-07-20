@@ -93,6 +93,7 @@ export const promptRouter = {
           temperature: opts.temperature ?? 0.7,
           max_tokens: opts.maxTokens ?? 1024,
         }),
+        signal: opts.signal,
       });
       if (!res.ok) throw new Error(`enhance HTTP ${res.status}`);
       const data: any = await res.json();

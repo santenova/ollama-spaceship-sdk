@@ -90,7 +90,7 @@ export async function solution(
 
   // Persona search
   const esCfg = getEsConfig();
-  const personaIndex = esCfg.indices?.['Persona'] || 'prompt-hub-persona';
+  const personaIndex = esCfg.indices?.['Persona'] || 'sample-prompt-persona';
   const seen = new Set<string>();
   const personas: any[] = [];
 
@@ -137,7 +137,7 @@ export async function solution(
   const systemA = `You are ${personas[0].name}. ${personas[0].description || ''}. ${personas[0].instructions || ''} Respond concisely as this persona.`;
   const systemB = `You are ${personas[1].name}. ${personas[1].description || ''}. ${personas[1].instructions || ''} Respond concisely as this persona.`;
   const debate: string[] = [];
-  const thinkingModel = modelRouter.resolve({ TaskType: 'thinking', Speed: 100});
+  const thinkingModel = modelRouter.resolve('thinking', prompt, defaultModel);
 
   const [t1, t2] = await Promise.all([
     invokeLLM({ system: systemA, messages: [{ role: 'user', content: `Problem: "${prompt}". Analyze this problem and propose your key solution in 2–3 sentences.` }], ollamaEndpoints, defaultModel, model: thinkingModel, temperature: 0.7 }),
@@ -157,8 +157,8 @@ export async function solution(
     ],
     ollamaEndpoints,
     defaultModel,
-    model: modelRouter.resolve({ TaskType: 'chat', Speed: 100}),
-    temperature: 0.9,
+    model: modelRouter.resolve('chat', prompt, defaultModel),
+    temperature: 0.5,
   }) as string;
 
   abortManager.cancel('solution');

@@ -19,15 +19,27 @@ const formatEntry = (entry: LogEntry): string =>
   }${entry.context ? ` | ${JSON.stringify(entry.context)}` : ''}`;
 
 // Set to true by jest.setup.after.ts after all tests complete to suppress post-teardown logging.
-// Using a mutable object property ensures the flag is live across all module-system transforms
-// (export let bindings can break under ts-jest ESM interop).
-export const jestState = { tornDown: false };
-export const markJestTornDown = () => { jestState.tornDown = true; };
+export let jestTornDown = false;
+export const markJestTornDown = () => { jestTornDown = true; };
 
 export const clientLogger = {
   log(level: LogLevel, message: string, context?: Record<string, any>, durationMs?: number) {
-    // Client logger is silenced — no console output in any environment.
-    return;
+    if (jestTornDown) return;
+    const entry: LogEntry = {
+      level,
+      message,
+      timestamp: new Date().toISOString(),
+      context,
+      durationMs,
+    };
+    const formatted = formatEntry(entry);
+    try {
+      if (level === 'error') console.error(formatted);
+      else if (level === 'warn') console.warn(formatted);
+      else console.log(formatted);
+    } catch {
+      // Swallow errors when Jest has already torn down its console buffer
+    }
   },
 
   info: (msg: string, ctx?: Record<string, any>) => clientLogger.log('info', msg, ctx),

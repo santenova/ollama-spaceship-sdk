@@ -26,7 +26,7 @@ export function createCircuitBreaker(name: string, opts: CircuitBreakerOptions =
   const setState = (next: CircuitState) => {
     if (state !== next) {
       state = next;
-      console.log(`[CircuitBreaker:${name}] → ${next}`);
+      console.warn(`[CircuitBreaker:${name}] → ${next}`);
       onStateChange?.(next);
     }
   };

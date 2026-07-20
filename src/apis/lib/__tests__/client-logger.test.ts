@@ -22,29 +22,37 @@ describe('clientLogger', () => {
     console.error = origError;
   });
 
-  test('info is silent', () => {
+  test('info logs to console.log with level INFO', () => {
     clientLogger.info('hello', { a: 1 });
-    expect(logs).toHaveLength(0);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain('[INFO]');
+    expect(logs[0]).toContain('hello');
+    expect(logs[0]).toContain('"a":1');
   });
 
-  test('warn is silent', () => {
+  test('warn logs to console.warn', () => {
     clientLogger.warn('careful');
-    expect(warns).toHaveLength(0);
+    expect(warns).toHaveLength(1);
+    expect(warns[0]).toContain('[WARN]');
   });
 
-  test('error is silent', () => {
+  test('error logs to console.error', () => {
     clientLogger.error('boom');
-    expect(errors).toHaveLength(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('[ERROR]');
   });
 
-  test('timed returns the result and is silent', async () => {
+  test('timed returns the result and logs duration', async () => {
     const res = await clientLogger.timed('op', async () => 42);
     expect(res).toBe(42);
-    expect(logs).toHaveLength(0);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain('op');
+    expect(logs[0]).toMatch(/\(\d+ms\)/);
   });
 
-  test('timed rethrows on failure and is silent', async () => {
+  test('timed rethrows and logs error on failure', async () => {
     await expect(clientLogger.timed('bad', async () => { throw new Error('fail'); })).rejects.toThrow('fail');
-    expect(errors).toHaveLength(0);
+    expect(errors).toHaveLength(1);
+    expect(errors[0]).toContain('bad FAILED');
   });
 });

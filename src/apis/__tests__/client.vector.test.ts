@@ -6,25 +6,26 @@
 import { createClient, config } from '../client';
 import { modelRouter } from '../lib/model-router';
 import { getEsConfig } from '../lib/es-entities';
-import { getOllamaEndpoint } from '../lib/ollamaEndpoint';
-import { getEsEndpoint } from '../lib/esEndpoint';
 
-function getEP(): string { return getOllamaEndpoint(); }
-function getES_EP(): string { return getEsEndpoint(); }
+const EP = 'http://127.0.0.1:11434';
+
+jest.setTimeout(60000);
 
 async function checkEndpoint() {
-  const ep = getEP();
   try {
-    const res = await fetch(`${ep}/v1/models`, { signal: AbortSignal.timeout(10000) });
+    const res = await fetch(`${EP}/v1/models`, { signal: AbortSignal.timeout(10000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (e: any) {
-    throw new Error(`Ollama unreachable at ${ep}: ${e.message}`);
+    throw new Error(`Ollama unreachable at ${EP}: ${e.message}`);
   }
 }
 
 describe('client.integrations.Core.vector', () => {
   beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('ollama_endpoints', JSON.stringify([EP]));
     modelRouter.invalidateCache();
+    localStorage.setItem('model_router_capability_cache', JSON.stringify({ endpoint: EP, map: {}, ts: Date.now() }));
   });
 
   test('is a function on the client', () => {
@@ -65,20 +66,20 @@ describe('client.integrations.Core.vector', () => {
 // Reindex → vector search integration
 // ---------------------------------------------------------------------------
 
+const ES_EP = 'http://127.0.0.1:9200';
 const TEST_INDEX = 'test-vector-reindex-search';
 
 async function checkElasticsearch() {
-  const esEp = getES_EP();
   try {
-    const res = await fetch(`${esEp}/_cluster/health`, { signal: AbortSignal.timeout(30000) });
+    const res = await fetch(`${ES_EP}/_cluster/health`, { signal: AbortSignal.timeout(5000) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (e: any) {
-    throw new Error(`Elasticsearch unreachable at ${esEp}: ${e.message}`);
+    throw new Error(`Elasticsearch unreachable at ${ES_EP}: ${e.message}`);
   }
 }
 
 async function deleteIndex(index: string) {
-  await fetch(`${getES_EP()}/${index}`, { method: 'DELETE' }).catch(() => {});
+  await fetch(`${ES_EP}/${index}`, { method: 'DELETE' }).catch(() => {});
 }
 
 describe('reindex → vector search', () => {
@@ -107,9 +108,8 @@ describe('reindex → vector search', () => {
     const dims = vec1!.length;
 
     // 2. Create the target vector index with dense_vector mapping
-    const esEp = getES_EP();
     await deleteIndex(TEST_INDEX);
-    const createRes = await fetch(`${esEp}/${TEST_INDEX}`, {
+    const createRes = await fetch(`${ES_EP}/${TEST_INDEX}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -131,7 +131,7 @@ describe('reindex → vector search', () => {
       JSON.stringify({ content: text2, content_vector: vec2 }),
     ].join('\n') + '\n';
 
-    const bulkRes = await fetch(`${esEp}/_bulk?refresh=true`, {
+    const bulkRes = await fetch(`${ES_EP}/_bulk?refresh=true`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-ndjson' },
       body: bulkBody,
@@ -143,7 +143,7 @@ describe('reindex → vector search', () => {
     expect(Array.isArray(queryVec)).toBe(true);
 
     // 5. knn search against the reindexed vector index
-    const searchRes = await fetch(`${esEp}/${TEST_INDEX}/_search`, {
+    const searchRes = await fetch(`${ES_EP}/${TEST_INDEX}/_search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

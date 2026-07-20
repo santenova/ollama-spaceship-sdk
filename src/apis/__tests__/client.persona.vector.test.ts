@@ -13,13 +13,11 @@
  *        b) closest / farthest by tags
  *        c) closest / farthest by voice_profile.vocabulary
  *
- * Requires: Ollama (endpoint from config), Elasticsearch (endpoint from getEsEndpoint)
+ * Requires: Ollama @ 127.0.0.1:11434, Elasticsearch @ 127.0.0.1:9200
  */
 
 import { createClient, config } from '../client';
 import { getEsConfig } from '../lib/es-entities';
-import { getOllamaEndpoint } from '../lib/ollamaEndpoint';
-import { getEsEndpoint } from '../lib/esEndpoint';
 import {
   sanitizePersonaForEmbedding,
   PERSONA_VECTOR_MAPPING,
@@ -28,7 +26,10 @@ import {
 
 jest.setTimeout(300_000); // 5 min — embedding all personas can be slow
 
-// Node-safe localStorage shim
+const EP    = 'http://127.0.0.1:11434';
+const ES_EP = 'http://127.0.0.1:9200';
+
+// Node-safe localStorage shim (mirrors client.test.ts)
 if (typeof globalThis.localStorage === 'undefined') {
   const _store: Record<string, string> = {};
   (globalThis as any).localStorage = {
@@ -40,36 +41,34 @@ if (typeof globalThis.localStorage === 'undefined') {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers — endpoints resolved from config, never hardcoded
+// Helpers
 // ---------------------------------------------------------------------------
 
 async function isOllamaUp(): Promise<boolean> {
   try {
-    const ep = getOllamaEndpoint();
-    const res = await fetch(`${ep}/v1/models`, { signal: AbortSignal.timeout(50000) });
+    const res = await fetch(`${EP}/v1/models`, { signal: AbortSignal.timeout(5000) });
     return res.ok;
   } catch { return false; }
 }
 
 async function isEsUp(): Promise<boolean> {
   try {
-    const ep = getEsEndpoint();
-    const res = await fetch(`${ep}/_cluster/health`, { signal: AbortSignal.timeout(50000) });
+    const res = await fetch(`${ES_EP}/_cluster/health`, { signal: AbortSignal.timeout(5000) });
     return res.ok;
   } catch { return false; }
 }
 
 async function deleteIndex(index: string) {
-  await fetch(`${getEsEndpoint()}/${index}`, { method: 'DELETE' }).catch(() => {});
+  await fetch(`${ES_EP}/${index}`, { method: 'DELETE' }).catch(() => {});
 }
 
 async function refreshIndex(index: string) {
-  await fetch(`${getEsEndpoint()}/${index}/_refresh`, { method: 'POST' }).catch(() => {});
+  await fetch(`${ES_EP}/${index}/_refresh`, { method: 'POST' }).catch(() => {});
 }
 
 /** knn search — returns hits sorted by descending score */
 async function knnSearch(index: string, queryVec: number[], k = 5) {
-  const res = await fetch(`${getEsEndpoint()}/${index}/_search`, {
+  const res = await fetch(`${ES_EP}/${index}/_search`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -156,7 +155,13 @@ describe('Persona vector index pipeline', () => {
     servicesUp = ollamaUp && esUp;
     if (!servicesUp) return; // all tests will skip individually via skipIfDown()
 
-    client = createClient(config);
+    // Point everything at local endpoints
+    localStorage.setItem('ollama_endpoints', JSON.stringify([EP]));
+
+    client = createClient({
+      ...config,
+      ollamaEndpoints: [EP],
+    });
 
     const esCfg = getEsConfig();
     const prefix = esCfg.indexPrefix || 'prompt-hub';
@@ -166,7 +171,7 @@ describe('Persona vector index pipeline', () => {
     // ── STEP 1: Fetch all personas via esEntities ───────────────────────────
     const personas: PersonaEmbeddingInput[] = await (client.esEntities as any).Persona.list(
       '-created_date',
-      1000,
+      2000,
     );
     expect(Array.isArray(personas)).toBe(true);
 
@@ -174,7 +179,10 @@ describe('Persona vector index pipeline', () => {
     marineBiologist =
       personas.find(
         (p) =>
-          p.name?.toLowerCase().includes('marine biologist')) ||
+          p.name?.toLowerCase().includes('marine') ||
+          p.expertise_areas?.some((e) => e.toLowerCase().includes('marine')) ||
+          p.tags?.some((t) => t.toLowerCase().includes('marine')),
+      ) ||
       ({
         id: '__synth__',
         name: 'Marine Biologist',
@@ -190,17 +198,16 @@ describe('Persona vector index pipeline', () => {
     await deleteIndex(vectorIndex);
 
     // Fetch mapping from source index (may not exist yet — that's fine)
-    const esEp = getEsEndpoint();
     let sourceProps: Record<string, any> = {};
     try {
-      const mapRes = await fetch(`${esEp}/${sourceIndex}/_mapping`);
+      const mapRes = await fetch(`${ES_EP}/${sourceIndex}/_mapping`);
       if (mapRes.ok) {
         const mapData: any = await mapRes.json();
         sourceProps = mapData[sourceIndex]?.mappings?.properties || {};
       }
     } catch {}
 
-    const createRes = await fetch(`${esEp}/${vectorIndex}`, {
+    const createRes = await fetch(`${ES_EP}/${vectorIndex}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -244,7 +251,7 @@ describe('Persona vector index pipeline', () => {
 
       if (lines.length === 0) continue;
 
-      const bulkRes = await fetch(`${esEp}/_bulk`, {
+      const bulkRes = await fetch(`${ES_EP}/_bulk`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-ndjson' },
         body: lines.join('\n') + '\n',
@@ -258,7 +265,7 @@ describe('Persona vector index pipeline', () => {
       const embedding = await client.integrations.Core.vector(text);
       const doc = { ...marineBiologist, embedding };
       delete (doc as any).id;
-      await fetch(`${esEp}/${vectorIndex}/_doc/__synth__`, {
+      await fetch(`${ES_EP}/${vectorIndex}/_doc/__synth__`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(doc),
@@ -277,14 +284,13 @@ describe('Persona vector index pipeline', () => {
   test('1a — closest neighbour by expertise_areas (Marine Biologist)', async () => {
     skipIfDown();
     const expertiseText = (marineBiologist.expertise_areas || []).join(' ').toLowerCase();
-    const sName = (marineBiologist.name.toLowerCase());
     const queryVec = await client.integrations.Core.vector(`expertise: ${expertiseText}`);
     expect(Array.isArray(queryVec)).toBe(true);
 
     const hits = await knnSearch(vectorIndex, queryVec!, 5);
     expect(hits.length).toBeGreaterThan(0);
 
-    const top = hits[1];
+    const top = hits[0];
     console.log('[expertise closest]', top._source?.name, 'score:', top._score);
     expect(top._score).toBeGreaterThan(0);
 
@@ -297,13 +303,14 @@ describe('Persona vector index pipeline', () => {
       marineKeywords.some((k) => topName.includes(k)) ||
       topExpertise.some((e) => marineKeywords.some((k) => e.includes(k))) ||
       topTags.some((t) => marineKeywords.some((k) => t.includes(k)));
-    console.log('[expertise closest] related to '+sName+':', isRelated, '| name:', top._source?.name);
+    console.log('[expertise closest] related:', isRelated, '| name:', top._source?.name);
     // Soft assertion — log rather than fail if corpus is small
     if (hits.length > 1) {
       expect(top._score).toBeGreaterThanOrEqual(hits[hits.length - 1]._score);
     }
   });
-/* test('1b — farthest neighbour by expertise_areas (lowest score in top-k)', async () => {
+
+  test('1b — farthest neighbour by expertise_areas (lowest score in top-k)', async () => {
     skipIfDown();
     const expertiseText = (marineBiologist.expertise_areas || []).join(' ').toLowerCase();
     const queryVec = await client.integrations.Core.vector(`expertise: ${expertiseText}`);
@@ -387,13 +394,11 @@ describe('Persona vector index pipeline', () => {
       expect(farthest._score).toBeLessThanOrEqual(hits[0]._score);
     }
   });
-  *
-  *
-  */
+
   // ── Sanity: vector index exists and contains docs ────────────────────────
   test('vector index is searchable and non-empty', async () => {
     skipIfDown();
-    const res = await fetch(`${getEsEndpoint()}/${vectorIndex}/_count`);
+    const res = await fetch(`${ES_EP}/${vectorIndex}/_count`);
     expect(res.ok).toBe(true);
     const data: any = await res.json();
     console.log('[index count]', data.count);
@@ -403,7 +408,7 @@ describe('Persona vector index pipeline', () => {
   // ── Sanity: embedding field present in mapping ────────────────────────────
   test('vector index has dense_vector embedding mapping', async () => {
     skipIfDown();
-    const res = await fetch(`${getEsEndpoint()}/${vectorIndex}/_mapping`);
+    const res = await fetch(`${ES_EP}/${vectorIndex}/_mapping`);
     expect(res.ok).toBe(true);
     const data: any = await res.json();
     const props = data[vectorIndex]?.mappings?.properties || {};

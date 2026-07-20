@@ -4,10 +4,7 @@
  * Location resolution uses real IP geolocation APIs (falls back to 0,0 on failure).
  */
 
-import { createClient, config } from '../../client';
-
-// Endpoint fetched from the apis client instance — never hardcoded in tests.
-const EP = createClient(config).getConfig().ollamaEndpoints[0];
+const EP = 'http://127.0.0.1:11434';
 
 jest.setTimeout(120000);
 

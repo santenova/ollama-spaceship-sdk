@@ -8,10 +8,16 @@ import { createClient, config, esEntities as _esEntities } from '../client';
 const esEntities = _esEntities as any;
 import { modelRouter } from '../lib/model-router';
 
+const EP = 'http://127.0.0.1:11434';
+
+jest.setTimeout(30000);
 
 describe('client.getMessages', () => {
   beforeEach(() => {
+    localStorage.clear();
+    localStorage.setItem('ollama_endpoints', JSON.stringify([EP]));
     modelRouter.invalidateCache();
+    localStorage.setItem('model_router_capability_cache', JSON.stringify({ endpoint: EP, map: {}, ts: Date.now() }));
   });
 
   test('is a function on the client', () => {

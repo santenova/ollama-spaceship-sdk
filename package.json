@@ -1,7 +1,7 @@
 {
   "name": "@santex/sdk",
-  "version": "1.0.2",
-  "main": "index.ts",
+  "version": "1.0.5",
+  "main": "dist/index.ts",
   "types": "dist/index.d.ts",
   "description": "",
   "scripts": {
