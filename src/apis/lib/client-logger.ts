@@ -51,11 +51,16 @@ export const clientLogger = {
     try {
       const result = await fn();
       const durationMs = Date.now() - start;
-      clientLogger.log('info', label, ctx, durationMs);
+
+
+
+      if (typeof label === 'string' && label.length > 0 && label !== 'vector') {
+        clientLogger.log('info', label, ctx, durationMs);
+      }
 
       // Ollama communication summary — mirrors what getMessages would show
       const isOllamaCall = ['InvokeLLM', 'InvokeLLMBatched', 'expandQuery', 'vision.send',
-        'vector', 'streamResponse-vision', 'promptRouter', 'websearch', 'toolbox'].some(k => label.includes(k));
+        'streamResponse-vision', 'promptRouter', 'websearch', 'toolbox'].some(k => label.includes(k));
       if (isOllamaCall) {
         const msgSummary: Record<string, any> = { call: label, durationMs };
         if (ctx?.model) msgSummary.model = ctx.model;

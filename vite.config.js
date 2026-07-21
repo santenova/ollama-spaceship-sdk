@@ -12,8 +12,8 @@ export default defineConfig(({ mode }) => {
       strictPort: true,
       // Allow all hosts - essential for Modal tunnel URLs
       allowedHosts: true,
-      base: 'docs',
-      app: 'index.html',
+      //base: 'docs',
+      //app: 'index.html',
       build: {
       rollupOptions: {
         onwarn(warning, warn) {

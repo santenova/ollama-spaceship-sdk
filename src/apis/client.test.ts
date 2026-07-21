@@ -805,7 +805,7 @@ let _clientModule: any = null;
 async function getClientModule(): Promise<any> {
   if (_clientModule) return _clientModule;
   try {
-    _clientModule = await import('@/apis/client');
+    _clientModule = await import('./client');
     return _clientModule;
   } catch (e: any) {
     throw new Error(`Cannot import ./client — run in browser/Vite context or configure path aliases. (${e?.message || e})`);

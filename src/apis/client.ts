@@ -1,20 +1,20 @@
 import axios from 'axios'; // Import axios directly
 
-import { appParams, appId, token, functionsVersion, appBaseUrl, getAppParams, localStorage, LS_PREFIX } from "@/apis/lib/app-params";
+import { appParams, appId, token, functionsVersion, appBaseUrl, getAppParams, localStorage, LS_PREFIX } from "./lib/app-params";
 
-import { createEsEntities, getEsConfig, saveEsConfig, esEntities, getIndexPrefix, setIndexPrefix } from "@/apis/lib/es-entities";
-import { validateClientConfig } from "@/apis/lib/config-schema";
-import { clientLogger } from "@/apis/lib/client-logger";
+import { createEsEntities, getEsConfig, saveEsConfig, esEntities, getIndexPrefix, setIndexPrefix } from "./lib/es-entities";
+import { validateClientConfig } from "./lib/config-schema";
+import { clientLogger } from "./lib/client-logger";
 export { clientLogger };
-import { createCircuitBreaker } from "@/apis/lib/circuit-breaker";
-import { telemetry } from "@/apis/lib/telemetry";
-import { toolRegistry } from "@/apis/lib/tool-registry";
-import { modelRouter } from "@/apis/lib/model-router";
-import { promptRouter } from "@/apis/lib/prompt-router";
-import { createBatcher } from "@/apis/lib/request-batcher";
-import { createAuthMiddleware } from "@/apis/lib/auth-middleware";
-import { trackedOllamaFetch } from "@/apis/lib/ollama-tracker";
-import { abortManager } from "@/apis/lib/abort-manager";
+import { createCircuitBreaker } from "./lib/circuit-breaker";
+import { telemetry } from "./lib/telemetry";
+import { toolRegistry } from "./lib/tool-registry";
+import { modelRouter } from "./lib/model-router";
+import { promptRouter } from "./lib/prompt-router";
+import { createBatcher } from "./lib/request-batcher";
+import { createAuthMiddleware } from "./lib/auth-middleware";
+import { trackedOllamaFetch } from "./lib/ollama-tracker";
+import { abortManager } from "./lib/abort-manager";
 import { webSearch } from "../apis/modules/websearch/websearch-tools";
 import { multiToolRun } from "../apis/modules/tools/multi-tool";
 import { thinkingLevels } from "../apis/modules/thinking/thinking-levels";
@@ -25,9 +25,9 @@ import { safeExecute } from "./lib/safe-execute";
 import { TelemetryEvents } from "./lib/telemetry-events";
 import { endpointRegistry } from "./lib/endpoint-registry";
 import { expandQuery as _expandQuery, solution as _solution, beaming as _beaming } from "./lib/task-orchestrator";
-import { createRateLimiter, type RateLimiter } from "@/apis/lib/rate-limiter";
-import { createProgressTracker, type AugmentedChunk, type StreamSummary } from "@/apis/lib/progress-tracker";
-import { LocationService } from "@/apis/lib/location";
+import { createRateLimiter, type RateLimiter } from "./lib/rate-limiter";
+import { createProgressTracker, type AugmentedChunk, type StreamSummary } from "./lib/progress-tracker";
+import { LocationService } from "./lib/location";
 
 interface ToolSchema {
   type: string;
@@ -1178,13 +1178,13 @@ export const createclientWithFallback = (_originalclient?: any) => {
 // createEsEntities returns a Proxy: client.entities.Persona.list(), .filter(), .get(), etc.
 export const esConfig = getEsConfig();
 
-export const baseClient = _local
+const baseClient = _local
   ? { ...defaultClient, entities: esEntities }
   : createclientWithFallback({ ...defaultClient, entities: esEntities });
 
 baseClient.entities = esEntities;
 
-export const client = createclientWithFallback(baseClient);
+// export const client = createclientWithFallback(baseClient);
 
 // Direct access to ES-backed entities and config helpers
 export { esEntities, getEsConfig, saveEsConfig, createEsEntities, getIndexPrefix, setIndexPrefix };

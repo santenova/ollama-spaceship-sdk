@@ -1,8 +1,40 @@
-# `apis/` — AI Client Library
+# Ollama-Spaceship
 
-Complete reference for every module in `src/apis/`.  
-The entry points are **`client.ts`** (low-level singleton) and **`ClientLibrary.ts`** (high-level class wrapper).
+![Ollama-Spaceship](https://github.com/santenova/ollama-spaceship/blob/main/images/ollama-spaceship.png)
 
+----
+
+## why
+
+
+- **🚀  Data Sovereignty**:
+    Complete data privacy with local deployment - no cloud providers, no third parties reading prompts
+
+- **📁  GDPR Compliance ✅**:
+    Perfect for companies bound by GDPR, industry regulations, or government restrictions on AI usage
+
+- **⚡  Zero Operational AI Costs**:
+    No token costs, no API fees - use open-source models like Ollama, reducing AI spending by 90%
+
+- **⚡  Geopolitical Independence**:
+    No dependency on US tech giants or foreign governments - critical advantage in current market
+
+- **⚡  Hybrid Architecture**:
+    Flexibility to mix local models with cloud APIs where appropriate - best of both worlds
+
+- **⚡  Rapid Deployment**:
+    Clone-ready infrastructure allows enterprises to launch their AI marketplace in weeks, not months
+
+
+    
+    
+```
+
+## Development entry points are
+
+apis/client.ts ->  (low-level singleton)
+apis/ClientLibrary.ts -> (high-level class wrapper).
+```
 ---
 
 ## Table of Contents
