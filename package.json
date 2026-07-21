@@ -1,6 +1,6 @@
 {
-  "name": "@santex/sdk",
-  "version": "1.0.6",
+  "name": "@santex/ollama-spaceship-sdk",
+  "version": "1.0.7",
   "description": "Complete reference for every module in `src/apis/`.   The entry points are **`client.ts`** (low-level singleton) and **`ClientLibrary.ts`** (high-level class wrapper).",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
