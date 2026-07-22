@@ -1,0 +1,21 @@
+{
+  "name": "typescript-project",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -b",
+    "test": "npx tsx dist/index.js"
+  },
+  "keywords": [
+    "AI",
+    "Ollama",
+    "openai-api"
+  ],
+  "author": "Hagen Geissler",
+  "license": "MIT",
+  "dependencies": {
+    "@santex/ollama-spaceship-sdk": "^1.1.0"
+  }
+}

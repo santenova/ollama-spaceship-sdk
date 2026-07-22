@@ -1372,6 +1372,28 @@ export { esEntities, getEsConfig, saveEsConfig, createEsEntities, getIndexPrefix
 // ─── OpenAI-compatible chat methods (frontend-facing) ────────────────────────
 // These methods use client.config (localStorage-backed) for defaults;
 // per-call options still override for signal/endpoint/model when needed.
+export { createCircuitBreaker } from "../apis/lib/circuit-breaker";
+export { telemetry } from "../apis/lib/telemetry";
+export { toolRegistry } from "../apis/lib/tool-registry";
+export { modelRouter } from "../apis/lib/model-router";
+export { promptRouter } from "../apis/lib/prompt-router";
+export { createBatcher } from "../apis/lib/request-batcher";
+export { createAuthMiddleware } from "../apis/lib/auth-middleware";
+export { trackedOllamaFetch } from "../apis/lib/ollama-tracker";
+export { abortManager } from "../apis/lib/abort-manager";
+export { webSearch } from "../apis/modules/websearch/websearch-tools";
+export { multiToolRun } from "../apis/modules/tools/multi-tool";
+export { flightTracker } from "../apis/modules/tools/flight-tracker";
+export { calculator } from "../apis/modules/tools/calculator";
+export { vectorPipeline } from "./modules/vector/vector-pipeline";
+export { safeExecute } from "./lib/safe-execute";
+export { TelemetryEvents } from "./lib/telemetry-events";
+export { endpointRegistry } from "./lib/endpoint-registry";
+export { expandQuery as _expandQuery, solution as _solution, beaming as _beaming } from "./lib/task-orchestrator";
+export { createRateLimiter, type RateLimiter } from "../apis/lib/rate-limiter";
+export { createProgressTracker, type AugmentedChunk, type StreamSummary } from "../apis/lib/progress-tracker";
+export { LocationService } from "../apis/lib/location";
+export { hookTelemetry, patchLogger } from "../apis/lib/telemetryLogStore";
 
 /** Returns stored config from localStorage (key: config.storageKey) */
 export function getStoredConfig() {
