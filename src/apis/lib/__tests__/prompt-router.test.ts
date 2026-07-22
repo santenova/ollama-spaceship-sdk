@@ -5,8 +5,10 @@
 
 import { promptRouter } from '../prompt-router';
 import { modelRouter } from '../model-router';
+import { createClient, config } from '../../client';
 
-const EP = 'http://127.0.0.1:11434';
+// Endpoint fetched from the apis client instance — never hardcoded in tests.
+const EP = createClient(config).getConfig().ollamaEndpoints[0];
 const MODEL = 'qwen3:0.6b';
 
 jest.setTimeout(120000);

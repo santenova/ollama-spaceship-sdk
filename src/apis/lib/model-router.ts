@@ -14,6 +14,12 @@
  */
 
 import { getEsConfig } from './es-entities';
+import {
+  getBenchmarkScores,
+  invalidateBenchmarkCache,
+  refreshBenchmarkCache,
+  type BenchmarkScore,
+} from './benchmark-scores';
 
 type BuiltInTaskType = 'chat' | 'websearch' | 'vision' | 'thinking' | 'json' | 'tool_call' | 'embedding';
 export type TaskType = BuiltInTaskType | (string & {}); // open for runtime-registered tasks
@@ -413,12 +419,26 @@ export const modelRouter = {
     return _capabilityCache;
   },
 
+  /**
+   * Read-only access to the benchmark score map (from TestResult ES records).
+   * Keyed by model name. Empty when no benchmarks have been run yet.
+   */
+  get benchmarkScores(): Record<string, BenchmarkScore> {
+    return getBenchmarkScores();
+  },
+
+  /** Trigger a non-blocking refresh of benchmark data from ES. */
+  refreshBenchmarkScores(): Promise<void> {
+    return refreshBenchmarkCache();
+  },
+
   /** Invalidate the capability cache (e.g. after endpoint change) */
   invalidateCache() {
     _capabilityCache = null;
     _cacheEndpoint = '';
     _lastRefreshAttempt = 0; // allow immediate refresh after manual invalidation
     endpointRegistry.invalidate(); // force re-read of ollama_endpoints from localStorage
+    invalidateBenchmarkCache(); // also clear stale benchmark data
   },
 
   /**
@@ -502,5 +522,43 @@ export const modelRouter = {
   /** Kept for backward compat — now just wraps the sync resolve (always Speed=100) */
   async resolveAsync(taskType: TaskType, defaultModel: string, _priority: ModelPriority = 'quality'): Promise<string> {
     return this.resolve({ TaskType: taskType, Speed: 100, defaultModel });
+  },
+
+  /**
+   * Resolve the best model using real benchmark data when available.
+   *
+   * Falls back to the standard capability-based resolve() when benchmark
+   * scores are missing for all candidate models — so this is strictly an
+   * upgrade path, never a regression.
+   *
+   * Ranking: accuracy × 0.5 + performanceScore × 0.3 + energyEfficiency × 0.2
+   * (all normalised to 0–100). Models with no benchmark data are excluded
+   * from the benchmark-ranked set; if none have data, falls back to resolve().
+   */
+  resolveByBenchmark(opts: ResolveOptions): string {
+    const map = getCapabilityMap();
+    const cap = resolveCapability(map, opts.TaskType);
+    const bucket = map[cap];
+    const fallback = opts.defaultModel ?? '';
+
+    if (!bucket || Object.keys(bucket).length === 0) {
+      return this.resolve(opts);
+    }
+
+    const scores = getBenchmarkScores();
+    const ranked = Object.keys(bucket)
+      .filter((mId) => scores[mId])
+      .map((mId) => {
+        const s = scores[mId];
+        const accuracyPct = s.accuracy * 100;
+        const score = accuracyPct * 0.5 + s.performanceScore * 0.3 + s.energyEfficiency * 0.2;
+        return { mId, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    if (ranked.length === 0) {
+      return this.resolve(opts);
+    }
+    return ranked[0].mId ?? fallback;
   },
 };

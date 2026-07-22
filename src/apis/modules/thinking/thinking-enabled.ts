@@ -8,13 +8,13 @@
  * browser and Node.
  */
 
-interface ThinkingEnabledConfig {
+export interface ThinkingEnabledConfig {
   ollamaEndpoints: string[];
   model?: string | null;
   defaultModel?: string;
 }
 
-interface ThinkingEnabledResult {
+export interface ThinkingEnabledResult {
   thinking: string;
   content: string;
 }

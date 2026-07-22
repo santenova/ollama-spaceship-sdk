@@ -9,7 +9,7 @@ export const ClientConfigSchema = z.object({
   serverUrl: z.string().min(1, 'serverUrl is required'),
   appId: z.string().min(1, 'appId is required'),
   functionsVersion: z.string().optional(),
-  headers: z.record(z.string(), z.string()).default({}),
+  headers: z.record(z.string(),z.string()).default({}),
   model: z.string().min(1, 'model is required'),
   ollamaEndpoints: z.array(z.string()).min(1, 'ollamaEndpoints must be a non-empty array'),
   messages: z.array(z.object({ role: z.string(), content: z.string() })).optional(),

@@ -1,15 +1,19 @@
 {
   "name": "@santex/ollama-spaceship-sdk",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Complete reference for every module in `src/apis/`.   The entry points are **`client.ts`** (low-level singleton) and **`ClientLibrary.ts`** (high-level class wrapper).",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/apis/client.js",
+  "types": "dist/apis/client.d.ts",
+  "exports": {
+    ".": "./dist/apis/client.js",
+    "./apis": "./dist/apis"
+  },
   "type": "module",
   "files": [
     "dist"
   ],
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run pub; vite",
     "pub": "npm run docs; echo '<meta http-equiv=\"refresh\" content=\"0; url=./docs/index.html\" />' >index.html;",
     "build": "tsc -b",
     "benchmark": "npx tsx src/apis/lib/triple-validation-cli.ts --cases",
@@ -41,16 +45,17 @@
     "@tsconfig/node20": "^20.1.9",
     "@types/jest": "^30.0.0",
     "@types/node": "^26.1.1",
+    "jest": "^30.4.2",
     "ts-node": "^10.9.2",
     "typedoc": "^0.28.19",
     "vite": "^5.0.8"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@testing-library/jest-dom": "^6.9.1",
     "autoprefixer": "^10.5.2",
     "axios": "^1.18.1",
     "expect": "^30.4.1",
-    "jest": "^30.4.2",
     "tailwindcss": "^4.3.3",
     "ts-jest": "^29.4.11",
     "tsx": "^4.22.4",

@@ -10,27 +10,14 @@
  */
 
 import { localStorage } from './app-params';
+import { endpointRegistry } from './endpoint-registry';
+import { translateQuery, parseSort, sourceFilter } from './es-query-builder';
 
 const ES_CONFIG_KEY = 'elasticsearch_config';
 const ES_CONFIG_VERSION = 10; // bumped: global index prefix is now configurable via getIndexPrefix/setIndexPrefix
 
 const INDEX_PREFIX_KEY = 'es_index_prefix';
 const DEFAULT_INDEX_PREFIX = 'prompt-hub';
-
-/** Auto-detect ES endpoint — mirrors getElasticsearchEndpoint() in apis/client.ts */
-const _g: any = globalThis as any;
-const _isBrowser = typeof _g.window !== 'undefined';
-const detectEsEndpoint = () => {
-  const host = _isBrowser
-    ? _g.window.location.hostname
-    : ((typeof process !== 'undefined' && process.env?.HOSTNAME) || 'localhost');
-  const isLocal = host === 'localhost' || host === '127.0.0.1' || host.startsWith('192.168.');
-  if (isLocal) {
-    // Browser: use Vite proxy path. Node: connect directly to ES.
-    return _isBrowser ? '/db' : 'http://localhost:9200';
-  }
-  return 'https://eu-vector-cloud.ngrok.dev';
-};
 
 // ---------------------------------------------------------------------------
 // Entity → index mapping
@@ -48,9 +35,21 @@ const ENTITY_INDEX_SUFFIXES = {
   ContentRepurposerResult: 'repurpose',
   StructureArchitectResult: 'outline',
   GeneratorList: 'generator-list',
+  TestCase: 'test-case',
+  TestResult: 'test-result',
+  PersonaVector: 'persona-vector',
 };
 
 const slugFor = (name) => name.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+
+/**
+ * Returns the live entity→suffix map, including any indices dynamically
+ * registered by discoverPrefixedIndices / setIndexPrefix at runtime.
+ * Use this instead of a hard-coded copy so the UI reflects discovered indices.
+ */
+export function getEntityIndexSuffixes(): Record<string, string> {
+  return { ...(ENTITY_INDEX_SUFFIXES as any) };
+}
 
 /**
  * Global index prefix used to build every entity's default ES index name.
@@ -75,25 +74,130 @@ export function getIndexPrefix() {
  * Any index matching the prefix that isn't already in ENTITY_INDEX_SUFFIXES will be
  * registered as a new entity so the esEntities proxy covers it immediately.
  */
+/**
+ * Register any discovered-but-unknown indices so the proxy covers them.
+ * Suffix is converted to a PascalCase entity name (e.g. "my-things" → "MyThings").
+ * Only indices starting with `<prefix>-` are considered.
+ */
+function registerDiscoveredIndices(prefix: string, discoveredIndices: string[]) {
+  const strip = prefix + '-';
+  for (const idxName of discoveredIndices) {
+    if (!idxName || !idxName.startsWith(strip)) continue;
+    const suffix = idxName.slice(strip.length);
+    if (!suffix) continue;
+    const entityName = suffix
+      .split('-')
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join('');
+    if (!ENTITY_INDEX_SUFFIXES[entityName]) {
+      (ENTITY_INDEX_SUFFIXES as any)[entityName] = suffix;
+    }
+  }
+}
+
+/**
+ * Scan ES `_cat/indices` for every index whose name starts with the current
+ * index prefix, and register any that aren't already known as new entities.
+ *
+ * CACHED: a fingerprint (sorted prefixed index names) + timestamp is kept in
+ * localStorage with a TTL. The scan is skipped entirely if the cache is fresh
+ * and the fingerprint hasn't changed — so createEsEntities doesn't hit ES on
+ * every call. Only when the index set actually changes do we re-register and
+ * rebuild the config.
+ */
+const DISCOVERY_CACHE_KEY = 'es_discovery_cache';
+const DISCOVERY_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+function loadDiscoveryCache(): { fingerprint?: string; ts?: number } {
+  try {
+    const raw = localStorage.getItem(DISCOVERY_CACHE_KEY);
+    if (raw) return JSON.parse(raw) || {};
+  } catch {}
+  return {};
+}
+
+function saveDiscoveryCache(fingerprint: string) {
+  try {
+    localStorage.setItem(DISCOVERY_CACHE_KEY, JSON.stringify({ fingerprint, ts: Date.now() }));
+  } catch {}
+}
+
+function fingerprintOf(names: string[]): string {
+  return [...names].sort().join('\n');
+}
+
+export async function discoverPrefixedIndices(getConfig) {
+  const cfg = (typeof getConfig === 'function' ? getConfig : () => getConfig)();
+  const endpoint = cfg?.endpoint || getEsEndpoint();
+  const prefix = cfg?.indexPrefix || getIndexPrefix();
+
+  // Fresh cache → skip the network round-trip entirely
+  const cached = loadDiscoveryCache();
+  const now = Date.now();
+  if (cached.fingerprint && cached.ts && now - cached.ts < DISCOVERY_TTL_MS) {
+    return; // nothing changed since last scan within TTL
+  }
+
+  let rows: any[];
+  try {
+    const res = await fetch(`${endpoint}/_cat/indices?format=json`, {
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(8000),
+    });
+    if (!res.ok) return;
+    rows = await res.json();
+  } catch {
+    return;
+  }
+  if (!Array.isArray(rows)) return;
+
+  const matched: string[] = [];
+  for (const row of rows) {
+    const name = row?.index;
+    if (typeof name === 'string' && name.startsWith(prefix + '-')) {
+      matched.push(name);
+    }
+  }
+
+  const fingerprint = fingerprintOf(matched);
+
+  // Same set as last time → just refresh the timestamp, no config churn
+  if (cached.fingerprint && cached.fingerprint === fingerprint) {
+    saveDiscoveryCache(fingerprint);
+    return;
+  }
+
+  // Index set changed (or first run) → register new suffixes + rebuild config
+  if (matched.length > 0) {
+    registerDiscoveredIndices(prefix, matched);
+    const freshCfg = getEsConfig();
+    const indices = {};
+    Object.keys(ENTITY_INDEX_SUFFIXES).forEach((name) => {
+      indices[name] = `${prefix}-${ENTITY_INDEX_SUFFIXES[name]}`;
+    });
+    saveEsConfig({ ...freshCfg, indexPrefix: prefix, indices });
+  }
+  saveDiscoveryCache(fingerprint);
+}
+
+/**
+ * Force-clear the discovery cache so the next createEsEntities / discovery
+ * call re-scans regardless of TTL. Useful after setIndexPrefix or manual
+ * index creation.
+ */
+export function clearDiscoveryCache() {
+  try { localStorage.removeItem(DISCOVERY_CACHE_KEY); } catch {}
+}
+
 export function setIndexPrefix(prefix, discoveredIndices?: string[]) {
   const p = (prefix || '').trim() || DEFAULT_INDEX_PREFIX;
   try { localStorage.setItem(INDEX_PREFIX_KEY, p); } catch {}
 
-  // Register any discovered-but-unknown indices so the proxy covers them
+  // Prefix changed → cached fingerprint is stale, force a fresh scan next time
+  clearDiscoveryCache();
+
   if (Array.isArray(discoveredIndices)) {
-    const strip = p + '-';
-    for (const idxName of discoveredIndices) {
-      if (!idxName.startsWith(strip)) continue;
-      const suffix = idxName.slice(strip.length);
-      // Convert suffix to a PascalCase entity name, e.g. "my-things" → "MyThings"
-      const entityName = suffix
-        .split('-')
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join('');
-      if (!ENTITY_INDEX_SUFFIXES[entityName]) {
-        (ENTITY_INDEX_SUFFIXES as any)[entityName] = suffix;
-      }
-    }
+    registerDiscoveredIndices(p, discoveredIndices);
   }
 
   try {
@@ -123,7 +227,7 @@ export function getEsConfig() {
   });
 
   const fresh = {
-    endpoint: detectEsEndpoint(),
+    endpoint: endpointRegistry.elasticsearch(),
     enabled: true,
     indexPrefix: prefix,
     indices,
@@ -140,7 +244,10 @@ export function getEsConfig() {
       }
       return {
         ...fresh,
-        endpoint: parsed.endpoint || fresh.endpoint,
+        // Endpoint is always resolved from the endpoint registry — it adapts to
+        // the runtime environment (local → /db proxy, remote → ngrok cloud) and
+        // must not be overridden by a stale stored value.
+        endpoint: fresh.endpoint,
         enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : fresh.enabled,
         indexPrefix: parsed.indexPrefix || fresh.indexPrefix,
         indices: { ...fresh.indices, ...parsed.indices },
@@ -220,137 +327,6 @@ export async function ensureEsIndex(
 }
 
 const ensureIndex = (endpoint: string, index: string) => ensureEsIndex(endpoint, index);
-
-// Fields that are mapped as date or numeric — sort directly (no .keyword).
-const DATE_NUMERIC_FIELDS = new Set([
-  'created_date', 'updated_date', 'use_count', 'rating', 'rating_count',
-  'version', 'chunk_index', 'total_chunks', 'file_size', 'word_count',
-  'message_count', 'score',
-]);
-
-// Sort string → ES sort array.
-//   '-created_date'  → [{ created_date: { order: 'desc' } }]
-//   'name'           → [{ 'name.keyword': { order: 'asc' } }]
-const parseSort = (sort) => {
-  if (!sort) return [{ created_date: { order: 'desc' } }, { _doc: { order: 'asc' } }];
-  const entries = Array.isArray(sort) ? sort : [sort];
-  return entries.map(s => {
-    if (typeof s !== 'string') return s;
-    const desc = s.startsWith('-');
-    const field = desc ? s.slice(1) : s;
-    // Use .keyword sub-field for text fields so lexicographic sort works
-    const sortField = DATE_NUMERIC_FIELDS.has(field) ? field : `${field}.keyword`;
-    return { [sortField]: { order: desc ? 'desc' : 'asc', unmapped_type: 'keyword' } };
-  });
-};
-
-// MongoDB-style query → ES bool query.
-//   { field: value }                        → term
-//   { field: { $gte: n, $lt: m } }          → range
-//   { field: { $in: [...] } }               → terms
-//   { field: { $ne: value } }               → must_not term
-//   { field: { $exists: true } }            → exists
-//   { field: { $regex: 'pat' } }            → regexp
-//   { $or: [q1, q2] }                       → should (min_should: 1)
-//   { $and: [q1, q2] }                      → must
-const translateQuery = (query) => {
-  if (!query || typeof query !== 'object' || Object.keys(query).length === 0) {
-    return { match_all: {} };
-  }
-
-  const must = [];
-  const mustNot = [];
-  const should = [];
-
-  for (const [key, value] of Object.entries(query)) {
-    if (key === '$or') {
-      const clauses = (value as any).map(translateQuery);
-      should.push(...clauses);
-      continue;
-    }
-    if (key === '$and') {
-      const clauses = (value as any).map(translateQuery);
-      must.push(...clauses);
-      continue;
-    }
-    if (key === '$nor') {
-      const clauses = (value as any).map(translateQuery);
-      mustNot.push(...clauses);
-      continue;
-    }
-
-    // Operator object ($gte, $in, etc.)
-    if (value !== null && typeof value === 'object' && !Array.isArray(value)) {
-      const ops: any = value;
-      const esField = key;
-
-      if (ops.$gte !== undefined || ops.$gt !== undefined ||
-          ops.$lte !== undefined || ops.$lt !== undefined) {
-        const range: any = {};
-        if (ops.$gte !== undefined) range.gte = ops.$gte;
-        if (ops.$gt !== undefined) range.gt = ops.$gt;
-        if (ops.$lte !== undefined) range.lte = ops.$lte;
-        if (ops.$lt !== undefined) range.lt = ops.$lt;
-        must.push({ range: { [esField]: range } });
-      }
-      if (ops.$in !== undefined) {
-        must.push({ terms: { [esField]: ops.$in } });
-      }
-      if (ops.$nin !== undefined) {
-        mustNot.push({ terms: { [esField]: ops.$nin } });
-      }
-      if (ops.$ne !== undefined) {
-        mustNot.push({ term: { [esField]: ops.$ne } });
-      }
-      if (ops.$exists !== undefined) {
-        (ops.$exists ? must : mustNot).push({ exists: { field: esField } });
-      }
-      if (ops.$regex !== undefined) {
-        must.push({ regexp: { [esField]: ops.$regex } });
-      }
-      if (ops.$not !== undefined) {
-        mustNot.push(translateQuery({ [esField]: ops.$not }));
-      }
-      continue;
-    }
-
-    // Plain equality — use term on .keyword for strings (exact match, works for
-    // filter/delete/updateMany), term directly for numbers/booleans.
-    if (value !== null && value !== undefined) {
-      if (typeof value === 'string') {
-        if (value.includes('*') || value.includes('?')) {
-          // Wildcard pattern e.g. "Marine*"
-          must.push({ wildcard: { [`${key}.keyword`]: { value: value.toLowerCase(), case_insensitive: true } } });
-        } else if (value.includes(' ')) {
-          // Multi-word string — use match (full-text) for natural search
-          must.push({ match: { [key]: { query: value, operator: 'and' } } });
-        } else {
-          // Single word — exact term match on .keyword
-          must.push({ term: { [`${key}.keyword`]: value } });
-        }
-      } else {
-        must.push({ term: { [key]: value } });
-      }
-    }
-  }
-
-  const bool: any = {};
-  if (must.length) bool.must = must;
-  if (mustNot.length) bool.must_not = mustNot;
-  if (should.length) {
-    bool.should = should;
-    bool.minimum_should_match = 1;
-  }
-
-  return Object.keys(bool).length ? { bool } : { match_all: {} };
-};
-
-// Source field selection
-const sourceFilter = (fields) => {
-  if (!fields) return undefined;
-  const arr = Array.isArray(fields) ? fields : String(fields).split(',');
-  return { includes: arr };
-};
 
 // ---------------------------------------------------------------------------
 // Entity handler factory
@@ -634,6 +610,11 @@ function createEsEntityHandler(entityName, getConfig) {
 
 export function createEsEntities(getConfig) {
   const resolver = typeof getConfig === 'function' ? getConfig : () => getConfig;
+
+  // Scan `_cat/indices` for every prefixed index and register unknown ones
+  // so the Proxy + config cover them immediately. Fire-and-forget — the Proxy
+  // resolves dynamically regardless, so first-access is never blocked.
+  discoverPrefixedIndices(resolver);
 
   return new Proxy({}, {
     get(_target, entityName) {

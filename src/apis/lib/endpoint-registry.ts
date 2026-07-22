@@ -11,7 +11,7 @@ const _isLocal = (): boolean => {
   const host = _isBrowser
     ? (globalThis as any).window.location.hostname
     : (process.env.HOSTNAME || '127.0.0.1');
-  return host === 'localhost' || host === '127.0.0.1' || host === 'localhost' || host.startsWith('192.168.');
+  return host === '127.0.0.1' || host === 'localhost' || host.startsWith('192.168.');
 };
 
 interface ResolvedEndpoints {

@@ -1,4 +1,4 @@
-interface ThinkingLevelsConfig {
+export interface ThinkingLevelsConfig {
   ollamaEndpoints: string[];
   model?: string | null;
   defaultModel?: string;

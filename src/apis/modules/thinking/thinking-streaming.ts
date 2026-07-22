@@ -9,13 +9,13 @@
  * uses plain `fetch` so it works in both browser and Node.
  */
 
-interface ThinkingStreamingConfig {
+export interface ThinkingStreamingConfig {
   ollamaEndpoints: string[];
   model?: string | null;
   defaultModel?: string;
 }
 
-interface ThinkingStreamingResult {
+export interface ThinkingStreamingResult {
   thinking: string;
   content: string;
   chunks: number;

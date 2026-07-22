@@ -1,6 +1,8 @@
 import { modelRouter } from '../model-router';
+import { createClient, config } from '../../client';
 
-const EP = 'http://localhost:11434';
+// Endpoint fetched from the apis client instance — never hardcoded in tests.
+const EP = createClient(config).getConfig().ollamaEndpoints[0];
 
 function seedCache(map: Record<string, Record<string, number>>) {
   localStorage.setItem('ollama_endpoints', JSON.stringify([EP]));

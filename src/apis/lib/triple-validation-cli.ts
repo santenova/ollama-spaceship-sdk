@@ -196,7 +196,7 @@ async function main() {
   // Column headers
   const headerRow =
     `  ${pad('#', 3, 'right')}  ${pad('Model', 30)}  ${pad('Endpoint', 26)}  ${pad('Acc', 7, 'right')}  ${pad('✓', 5, 'right')}  ${pad('✗', 5, 'right')}  ${pad('FP', 4, 'right')}  ${pad('FN', 4, 'right')}  ${pad('Err', 4, 'right')}  ${pad('Tokens', 8, 'right')}  ${pad('ms/q', 6, 'right')}  ${pad('Perf', 6, 'right')}`;
-  console.log(color(C.bold + C.brightCyan, headerRow));
+  console.log(color(C.bold + C.brightYellow, headerRow));
   console.log(color(C.cyan, '│') + color(C.gray, '─'.repeat(120)) + color(C.cyan, '│'));
 
   // Rows

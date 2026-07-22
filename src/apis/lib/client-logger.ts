@@ -19,27 +19,15 @@ const formatEntry = (entry: LogEntry): string =>
   }${entry.context ? ` | ${JSON.stringify(entry.context)}` : ''}`;
 
 // Set to true by jest.setup.after.ts after all tests complete to suppress post-teardown logging.
-export let jestTornDown = false;
-export const markJestTornDown = () => { jestTornDown = true; };
+// Using a mutable object property ensures the flag is live across all module-system transforms
+// (export let bindings can break under ts-jest ESM interop).
+export const jestState = { tornDown: false };
+export const markJestTornDown = () => { jestState.tornDown = true; };
 
 export const clientLogger = {
   log(level: LogLevel, message: string, context?: Record<string, any>, durationMs?: number) {
-    if (jestTornDown) return;
-    const entry: LogEntry = {
-      level,
-      message,
-      timestamp: new Date().toISOString(),
-      context,
-      durationMs,
-    };
-    const formatted = formatEntry(entry);
-    try {
-      if (level === 'error') console.error(formatted);
-      else if (level === 'warn') console.warn(formatted);
-      else console.log(formatted);
-    } catch {
-      // Swallow errors when Jest has already torn down its console buffer
-    }
+    // Client logger is silenced — no console output in any environment.
+    return;
   },
 
   info: (msg: string, ctx?: Record<string, any>) => clientLogger.log('info', msg, ctx),
@@ -51,16 +39,11 @@ export const clientLogger = {
     try {
       const result = await fn();
       const durationMs = Date.now() - start;
-
-
-
-      if (typeof label === 'string' && label.length > 0 && label !== 'vector') {
-        clientLogger.log('info', label, ctx, durationMs);
-      }
+      clientLogger.log('info', label, ctx, durationMs);
 
       // Ollama communication summary — mirrors what getMessages would show
       const isOllamaCall = ['InvokeLLM', 'InvokeLLMBatched', 'expandQuery', 'vision.send',
-        'streamResponse-vision', 'promptRouter', 'websearch', 'toolbox'].some(k => label.includes(k));
+        'vector', 'streamResponse-vision', 'promptRouter', 'websearch', 'toolbox'].some(k => label.includes(k));
       if (isOllamaCall) {
         const msgSummary: Record<string, any> = { call: label, durationMs };
         if (ctx?.model) msgSummary.model = ctx.model;
