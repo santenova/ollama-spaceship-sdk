@@ -1,5 +1,5 @@
 
-import { createClient, modelRouter , TelemetryEvents, telemetry } from '@santex/ollama-spaceship-sdk';
+import { client, createClient, modelRouter , TelemetryEvents, telemetry } from '@santex/ollama-spaceship-sdk';
 
 async function  autoSelectPersona(chatMessage: string, topK = 1): Promise<any[] | null> {
 // Overall guard: never hang the caller — resolve to null after 30s.
@@ -88,8 +88,7 @@ return Promise.race([run, timeout]);
 }
 
 
-
-const client = createClient({
+const config = {
   serverUrl: 'http://127.0.0.1:9200',   // Elasticsearch endpoint
   appId: 'my-app',
   model: 'qwen3:0.6b',                   // default Ollama model
@@ -98,7 +97,8 @@ const client = createClient({
   rateLimit: null   
 
   //rateLimit: { maxCalls: 20, windowMs: 1000 }, // null = unlimited
-});
+};
+
 
 
 const userPrompt = 'write about ocean rescue efforts, create an ultra smart inventory system of projects and other relevant actors, the indices need be able to be reduced by geo-search + vector search + user query , and an array of project  scores like funding, members, efficency, avg turnout in tonnes  many as possible! locations funding project score in terms time,cost, technology consider that ';
@@ -108,7 +108,6 @@ console.log({'userPrompt':userPrompt});
 
 const enhanced = await client.promptRouter.enhance(userPrompt, {
   TaskType: 'chat',
-  stream: true,
   Speed: 100,
   defaultModel: 'qwen3:0.6b',
   persona: {
@@ -134,7 +133,7 @@ const canThink = await client.integrations.Core.thinkingEnabled('Ocean Cleanup 2
 console.log({'canThink':canThink});
 
 
-// Depth levels
+// Depth levls
 const levels = await client.integrations.Core.thinkingLevels('Top 7 domains involved in Ocean Cleanup success');
 
 console.log({'levels':levels});
@@ -159,9 +158,45 @@ console.log({'modelRouter':modelRouter});
 // All models for fan-out (beaming)
 const models = modelRouter.resolveAll('chat', 'fallback');  // sorted fastest-first
 
-
 console.log({'models-by-speed':models});
+const capabilities = modelRouter.buildCapabilityMap(config.ollamaEndpoints[0]);
+
+
+console.log({'models-by-speed':capabilities});
 // All models for fan-out (beaming)
 // Register a custom task type
 //modelRouter.registerTaskType('translation', ['tools', 'completion']);
 
+const { results } = await client.multiEntitySearch({
+          query: "expert biologyst",
+          entities: ['Persona', 'Template'],
+          topK: 3,
+       });
+console.log({'vector multiEntitySearch':results});
+
+const lib = getClientLibrary();
+
+
+
+// Simple LLM call
+const answer = await lib.invoke({ prompt: 'What is the speed of light?' });
+
+// Structured JSON output
+const data = await lib.invoke({
+  prompt: 'List 3 ocean animals',
+  response_json_schema: {
+    type: 'object',
+    properties: { animals: { type: 'array', items: { type: 'string' } } }
+  },
+});
+
+// Streaming
+lib.stream('chat', 'Tell me a story').subscribe({
+  next: (chunk) => process.stdout.write(chunk.text),
+  error: console.error,
+  complete: (summary) => console.log(`\n${summary.tokensPerSecond} tok/s`),
+});
+
+// Entity CRUD via Elasticsearch
+const personas = await lib.entities.Persona.list('-created_date', 20);
+await lib.entities.Persona.create({ name: 'Expert', description: '...' });

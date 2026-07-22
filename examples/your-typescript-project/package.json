@@ -16,6 +16,6 @@
   "author": "Hagen Geissler",
   "license": "MIT",
   "dependencies": {
-    "@santex/ollama-spaceship-sdk": "^1.1.0"
+    "@santex/ollama-spaceship-sdk": "^1.1.1"
   }
 }
